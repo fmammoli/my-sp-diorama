@@ -1,0 +1,5 @@
+/cache
+/.vscode
+/output
+.Rprofile
+.DS_Store
