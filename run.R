@@ -260,7 +260,7 @@ addresses <- tibble::tribble(
   "Edifício Copan",    "Av. Ipiranga, 200, Sao Paulo - SP, 01046-010",
   #"Ed. Ouro Preto",    "R. Novo Horizonte, 64, São Paulo - SP, 01244-020"
 )
-buffer_size <- 400
+buffer_size <- 200
 #geocode address
 lat_longs <- addresses %>%
   tidygeocoder::geocode(addr, method = "osm", lat = latitude, long = longitude, verbose = TRUE)
@@ -279,12 +279,16 @@ point <- lat_longs %>%
 
 catalog <- load_lidar(file.path(cache_dir, "lidar", "data"), point, buffer_size)
 catalog
+memory_usage <- object.size(catalog)
+format(memory_usage, units = "MB")
 
 
 # Plot intersecting cells
 plot(catalog, color = "RGB")
 
-total_lider_raster <- build_lidar_raster(catalog, terrain_only = T)
+total_lider_raster <- build_lidar_raster(catalog, terrain_only = F)
+memory_usage <- object.size(total_lider_raster)
+format(memory_usage, units = "Kb")
 
 terra::plot(total_lider_raster)
 #End preparing the lidar parts
@@ -298,6 +302,8 @@ buffer <- lat_longs %>%
   terra::buffer(buffer_size)
 
 ortho_rast <- load_orthophotos(file.path(cache_dir, "ortho", "data"), buffer)
+memory_usage <- object.size(ortho_rast)
+format(memory_usage, units = "Kb")
 
 terra::plotRGB(ortho_rast)
 img <- create_ortho_overlay(ortho_rast, total_lider_raster)
@@ -305,9 +311,14 @@ img <- create_ortho_overlay(ortho_rast, total_lider_raster)
 #render
 elmat <- rayshader::raster_to_matrix(total_lider_raster)
 
+# replace NaN and NA for the min height value
+min_value <- min(elmat, na.rm = TRUE)
+elmat[is.nan(elmat)] <- minValue
+elmat[is.na(elmat)] <- minValue
+
 elmat %>%
-  rayshader::sphere_shade(texture = "imhof1", colorintensity = 1, zscale = 0.6) %>%
-  #rayshader::height_shade() |>
+  rayshader::height_shade() |>
+  #rayshader::add_water(rayshader::detect_water(elmat, cutoff = 800), color= "desert") |>
   rayshader::add_overlay(
     img,
     alphalayer = 1
@@ -321,9 +332,16 @@ elmat %>%
     phi = 45,
     baseshape = "circle",
     windowsize = c(1000, 800),
-    clear_previous = T,
-    shadow = T
+    shadow = F
   )
+memory_usage <- object.size(elmat)
+format(memory_usage, units = "MB")
+
+# if you want to save it to an .obj
+rgl::writeOBJ("object.obj")
+
+#This is not working for some reasong
+#rayshader::save_obj("copan.obj", save_texture = TRUE)
 
 rayshader::render_camera(
   phi = 30,
@@ -331,6 +349,7 @@ rayshader::render_camera(
   theta = 25,
 )
 
+# if you want to add a picture as a mesh
 pic <- jpeg::readJPEG("ed_copan.jpg")
 
 pic_df <- data.frame(
