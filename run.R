@@ -161,7 +161,7 @@ build_lidar_raster <- function(catalog, terrain_only = FALSE) {
 }
 
 # Download orthophoto for specific cell_codes
-donwload_orthophoto <- function(cell_codes, cache_dir) {
+download_orthophoto <- function(cell_codes, cache_dir) {
   ortho_cells <- tibble::tibble(cell_code = intersecting_cells_code) %>%
     dplyr::select(cell_code) %>%
     dplyr::mutate(
@@ -201,7 +201,7 @@ donwload_orthophoto <- function(cell_codes, cache_dir) {
 
 #load orthophotos
 load_orthophotos <- function(file_paths, buffer) {
-  jp2_files <- grep("\\.jp2$", ortho_files_path, ignore.case = TRUE, value = TRUE)
+  jp2_files <- grep("\\.jp2$", file_paths, ignore.case = TRUE, value = TRUE)
   if(jp2_files |> length() > 1) {
     spat_raster_collection <- terra::sprc(jp2_files)
     ortho_crop_collection <- terra::crop(spat_raster_collection, buffer, snap = "in")
@@ -294,14 +294,14 @@ terra::plot(total_lider_raster)
 #End preparing the lidar parts
 
 #prepare orthophoto
-ortho_files_path <- donwload_orthophoto(intersecting_cells_code, cache_dir)
+ortho_files_path <- download_orthophoto(intersecting_cells_code, cache_dir)
 
 buffer <- lat_longs %>%
   terra::vect(geom = c("longitude", "latitude"), crs = "EPSG:4326") %>%
   terra::project(quadricles) %>%
   terra::buffer(buffer_size)
 
-ortho_rast <- load_orthophotos(file.path(cache_dir, "ortho", "data"), buffer)
+ortho_rast <- load_orthophotos(file.path(cache_dir, "ortho", "data") |> list.files(full.names = TRUE), buffer)
 memory_usage <- object.size(ortho_rast)
 format(memory_usage, units = "Kb")
 
@@ -310,11 +310,12 @@ img <- create_ortho_overlay(ortho_rast, total_lider_raster)
 
 #render
 elmat <- rayshader::raster_to_matrix(total_lider_raster)
+elmat <- rayshader::resize_matrix(elmat, 0.5)
 
 # replace NaN and NA for the min height value
 min_value <- min(elmat, na.rm = TRUE)
-elmat[is.nan(elmat)] <- minValue
-elmat[is.na(elmat)] <- minValue
+elmat[is.nan(elmat)] <- min_value
+elmat[is.na(elmat)] <- min_value
 
 elmat %>%
   rayshader::height_shade() |>
@@ -341,7 +342,9 @@ format(memory_usage, units = "MB")
 rgl::writeOBJ("object.obj")
 
 #This is not working for some reasong
-#rayshader::save_obj("copan.obj", save_texture = TRUE)
+rayshader::save_obj("copan.obj", save_texture = TRUE)
+
+rayshader::save_3dprint("copan_print.stl", maxwidth = 125, unit = "mm")
 
 rayshader::render_camera(
   phi = 30,
