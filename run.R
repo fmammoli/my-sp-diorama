@@ -68,8 +68,10 @@ get_intersecting_cells <- function(lat_longs, quadricles, buffer_size) {
 
 #Download lidar data from the specific cell codes
 download_lidar <- function(cell_codes, cache_dir) {
-  cells <- tibble::tibble(cell_code = intersecting_cells_code) %>%
-    dplyr::select(cell_code) %>%
+  #cell_codes <- c("3314-332", "3314-411", "3314-243", "3314-164")
+  #cache_dir <- "/Users/fmammoli/Developer/rlang/my-sp-diorama/cache"
+  cells <- tibble::tibble(cell_code = intersecting_cells_code) |>
+    dplyr::select(cell_code) |>
     dplyr::mutate(
       url = paste0(
         "https://geosampa.prefeitura.sp.gov.br/PaginasPublicas/downloadArquivo.aspx?orig=DownloadMapaArticulacao&arq=MDS_2020%5C",
@@ -98,9 +100,10 @@ download_lidar <- function(cell_codes, cache_dir) {
       progress = TRUE
     )
   )
+
   unziped <- purrr::map(resps, function(x) unzip(x$body[1], exdir = file.path(cache_dir, "lidar", "data")))
-  print(unziped %>% unlist())
-  return(unziped %>% unlist())
+  print(unziped |> unlist())
+  return(unziped |> unlist())
 }
 
 load_lidar <- function(dirname, point, buffer_size) {
@@ -193,7 +196,7 @@ download_orthophoto <- function(cell_codes, cache_dir) {
       progress = TRUE
     )
   )
-
+  print(resps)
   unziped <- purrr::map(resps, function(x) unzip(x$body[1], exdir = file.path(cache_dir, "ortho", "data")))
   unziped |> unlist() |> print()
   return(unziped |> unlist())
@@ -255,16 +258,23 @@ quadricles <- download_quadricle_shapefile(cache_dir) %>%
 #Por algum motivo não pode ter acento no endereço, senão o geocoding não funciona, tem que rever isso.
 addresses <- tibble::tribble(
   ~name,              ~addr,
-  #"Masp",             "Av. Paulista, 1578 - Bela Vista, Sao Paulo - SP, 01310-200",
+  "Masp",             "Av. Paulista, 1578 - Bela Vista, Sao Paulo - SP, 01310-200",
   #"Ed. Banespa",      "Rua Joao Bricola, 24 Sao Paulo - SP, 01014-900",
-  "Edifício Copan",    "Av. Ipiranga, 200, Sao Paulo - SP, 01046-010",
-  #"Ed. Ouro Preto",    "R. Novo Horizonte, 64, São Paulo - SP, 01244-020"
+  #"Edifício Copan",    "Av. Ipiranga, 200, Sao Paulo - SP, 01046-010",
+  #"Ed. Ouro Preto",    "R. Novo Horizonte, 64, São Paulo - SP, 01244-020",
+  #"Sesc Paulista",      "Av. Paulista, 119 - Bela Vista, Sao Paulo - SP, 01311-903",
+  #"Ibipapuera",         "Lago das Garcas - Vila Mariana, Sao Paulo - SP, 04094-050"
 )
 buffer_size <- 200
 #geocode address
 lat_longs <- addresses %>%
   tidygeocoder::geocode(addr, method = "osm", lat = latitude, long = longitude, verbose = TRUE)
 lat_longs
+
+#lat <- -23.585841125251807
+#long <- -46.661452066117576
+#lat_longs["latitude"] <- lat
+#lat_longs["longitude"] <- long
 
 intersecting_cells_code <- get_intersecting_cells(lat_longs, quadricles, buffer_size)
 intersecting_cells_code
@@ -310,7 +320,6 @@ img <- create_ortho_overlay(ortho_rast, total_lider_raster)
 
 #render
 elmat <- rayshader::raster_to_matrix(total_lider_raster)
-elmat <- rayshader::resize_matrix(elmat, 0.5)
 
 # replace NaN and NA for the min height value
 min_value <- min(elmat, na.rm = TRUE)
@@ -333,16 +342,17 @@ elmat %>%
     phi = 45,
     baseshape = "circle",
     windowsize = c(1000, 800),
-    shadow = F
+    shadow = F,
+    solid = T
   )
 memory_usage <- object.size(elmat)
 format(memory_usage, units = "MB")
 
 # if you want to save it to an .obj
-rgl::writeOBJ("object.obj")
+# rgl::writeOBJ("object.obj")
 
 #This is not working for some reasong
-rayshader::save_obj("copan.obj", save_texture = TRUE)
+rayshader::save_obj("masp.obj", save_texture = TRUE)
 
 rayshader::save_3dprint("copan_print.stl", maxwidth = 125, unit = "mm")
 
